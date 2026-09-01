@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sonms.textfieldstatetest.form.patterna.FormViewModelA
 import com.sonms.textfieldstatetest.form.patterna.FormViewModelASaved
+import com.sonms.textfieldstatetest.form.patterna2.FormViewModelA2
+import com.sonms.textfieldstatetest.form.patterna2.FormViewModelA2Saved
 import com.sonms.textfieldstatetest.form.patternb.FormValues
 import com.sonms.textfieldstatetest.form.patternb.FormViewModelB
 import com.sonms.textfieldstatetest.form.patternb.rememberFormStateHolderB
@@ -62,8 +64,21 @@ private fun ErrorLine(tag: String, error: Boolean) {
 fun AllPatternsScreen(modifier: Modifier = Modifier) {
     val vmA: FormViewModelA = viewModel()
     val vmASaved: FormViewModelASaved = viewModel()
+    val vmA2: FormViewModelA2 = viewModel()
+    val vmA2Saved: FormViewModelA2Saved = viewModel()
     val vmB: FormViewModelB = viewModel()
     val holderB = rememberFormStateHolderB()
+
+    // 실험 3: config change 후에도 컨테이너 인스턴스가 같은 객체인지 확인한다.
+    // Activity 재생성 시 컴포지션은 새로 만들어지므로 LaunchedEffect(Unit) 가 다시 실행되고,
+    // ViewModel(과 그 안의 fields)이 생존했다면 identityHashCode 가 이전과 같아야 한다.
+    LaunchedEffect(Unit) {
+        Log.i(
+            "TFPattern",
+            "A2 fields identity=${System.identityHashCode(vmA2.fields)}, " +
+                "A2Saved fields identity=${System.identityHashCode(vmA2Saved.fields)}",
+        )
+    }
 
     // 패턴 B: 컴포저블이 값 스냅샷을 관찰해 ViewModel 로 전달한다.
     LaunchedEffect(holderB) {
@@ -88,6 +103,16 @@ fun AllPatternsScreen(modifier: Modifier = Modifier) {
         val sStates = listOf(vmASaved.title, vmASaved.description, vmASaved.price, vmASaved.startDate, vmASaved.endDate)
         FIELD_LABELS.forEachIndexed { i, l -> Field("s_$i", l, sStates[i]) }
         ErrorLine("s_error", vmASaved.dateRangeError)
+
+        SectionHeader("패턴 A' — 컨테이너 클래스, SavedStateHandle 미연동")
+        val a2States = listOf(vmA2.fields.title, vmA2.fields.description, vmA2.fields.price, vmA2.fields.startDate, vmA2.fields.endDate)
+        FIELD_LABELS.forEachIndexed { i, l -> Field("a2_$i", l, a2States[i]) }
+        ErrorLine("a2_error", vmA2.dateRangeError)
+
+        SectionHeader("패턴 A'+Saved — 컨테이너 클래스가 SavedStateHandle 배선을 격리")
+        val s2States = listOf(vmA2Saved.fields.title, vmA2Saved.fields.description, vmA2Saved.fields.price, vmA2Saved.fields.startDate, vmA2Saved.fields.endDate)
+        FIELD_LABELS.forEachIndexed { i, l -> Field("s2_$i", l, s2States[i]) }
+        ErrorLine("s2_error", vmA2Saved.dateRangeError)
 
         SectionHeader("패턴 B — 화면 레벨 상태 홀더, ViewModel 은 snapshotFlow 관찰")
         val bStates = listOf(holderB.title, holderB.description, holderB.price, holderB.startDate, holderB.endDate)

@@ -2,6 +2,8 @@ package com.sonms.textfieldstatetest.form
 
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import com.sonms.textfieldstatetest.form.patterna.FormViewModelA
+import com.sonms.textfieldstatetest.form.patterna2.CourseFormFields
+import com.sonms.textfieldstatetest.form.patterna2.FormViewModelA2
 import com.sonms.textfieldstatetest.form.patternb.FormValues
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,6 +33,37 @@ class CrossFieldValidationTest {
         vm.endDate.setTextAndPlaceCursorAtEnd("2026-05-10")
 
         assertFalse(vm.dateRangeError)
+    }
+
+    // ---- 패턴 A': 컨테이너를 거쳐 필드에 접근한다 ----
+    @Test
+    fun patternA2_endBeforeStart_isError() {
+        // Arrange (3줄): ViewModel 생성 + 컨테이너 경유 TextFieldState 2개에 값 주입
+        val vm = FormViewModelA2()
+        vm.fields.startDate.setTextAndPlaceCursorAtEnd("2026-05-10")
+        vm.fields.endDate.setTextAndPlaceCursorAtEnd("2026-05-01")
+
+        assertTrue(vm.dateRangeError)
+    }
+
+    @Test
+    fun patternA2_normalRange_isNotError() {
+        val vm = FormViewModelA2()
+        vm.fields.startDate.setTextAndPlaceCursorAtEnd("2026-05-01")
+        vm.fields.endDate.setTextAndPlaceCursorAtEnd("2026-05-10")
+
+        assertFalse(vm.dateRangeError)
+    }
+
+    @Test
+    fun patternA2_container_isTestableWithoutViewModel() {
+        // 컨테이너가 독립 객체이므로 ViewModel 없이도 검증할 수 있다. 그래도 Arrange 는 여전히 3줄이다
+        // (컨테이너 생성자가 값을 받지 않아, 필드마다 setTextAndPlaceCursorAtEnd 를 호출해야 하기 때문).
+        val fields = CourseFormFields()
+        fields.startDate.setTextAndPlaceCursorAtEnd("2026-05-10")
+        fields.endDate.setTextAndPlaceCursorAtEnd("2026-05-01")
+
+        assertTrue(fields.dateRangeError)
     }
 
     // ---- 패턴 B: 값 객체에 대한 순수 함수 ----
