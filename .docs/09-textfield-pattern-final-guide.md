@@ -123,15 +123,15 @@ RK3566과 SM-G950N 모두 디스플레이 방향이 고정되어 `user_rotation`
 | 프로세스 종료 복원 요구 있음 | **패턴 B**, 또는 `SavedStateHandle` 보일러플레이트를 감수하는 **패턴 A+Saved / A′+Saved** | 패턴 B는 저장/복원 로직이 0줄이다. 패턴 A 계열은 1회 고정 약 8줄 + 필드당 1줄이며, 빠뜨리면 조용히 소실된다 |
 | 위 두 요구가 모두 있음 | **패턴 B** | 두 이점이 추가 비용 없이 겹친다. 패턴 A 계열로 하려면 두 규율·보일러플레이트를 모두 감수해야 한다 |
 
-### 3-2. 이번 실험 범위 밖의 상황 (일반 원칙에 따른 권장)
+### 3-2. 실험 범위 밖 또는 부분적으로만 실측된 상황
 
-아래 두 행은 실험 1·2·3이 직접 측정한 항목이 아니다. Compose의 일반 원칙(값을 소유하는 위치와
-생명 주기)에 근거한 판단이므로, 실제로 적용할 때는 별도로 확인하는 것이 좋다.
+아래 첫 행은 실험 1·2·3이 다루지 않은 항목이라 Compose의 일반 원칙에 근거한 추정으로 남아 있다.
+둘째 행은 `10-nav-scope-experiment.md`에서 별도로 실측했다.
 
-| 상황 | 권장 | 근거 (미실측) |
+| 상황 | 권장 | 근거 |
 |---|---|---|
-| ViewModel이 서버 제출·비동기 로직의 소유자여야 함 | **패턴 B** (ViewModel은 `snapshotFlow`로 `FormValues`를 관찰해 제출 로직을 가진다), 또는 **패턴 A+Saved / A′+Saved** | 패턴 B의 `FormViewModelB`가 `FormValues`를 관찰하는 구조는 코드로 확인되지만, 실제 서버 제출·비동기 시나리오는 이번 실험에서 돌리지 않았다 |
-| 폼이 여러 화면·탭에 걸쳐 있고 상태를 화면 밖에서 오래 들고 있어야 함 | **패턴 A / A+Saved** (또는 A′ 계열) | 화면을 이동했다가 돌아오는 시나리오는 세 실험 중 어느 것도 다루지 않았다. `rememberTextFieldState()`가 컴포지션을 완전히 벗어나면 회수된다는 Compose 일반 원칙으로 볼 때 ViewModel 소유가 유리할 것으로 보이나, 실측하지 않았다 |
+| ViewModel이 서버 제출·비동기 로직의 소유자여야 함 | **패턴 B** (ViewModel은 `snapshotFlow`로 `FormValues`를 관찰해 제출 로직을 가진다), 또는 **패턴 A+Saved / A′+Saved** | 미실측. 패턴 B의 `FormViewModelB`가 `FormValues`를 관찰하는 구조는 코드로 확인되지만, 실제 서버 제출·비동기 시나리오는 이번 실험에서 돌리지 않았다 |
+| 폼이 여러 화면·탭에 걸쳐 있고 상태를 화면 밖에서 오래 들고 있어야 함 (bottom nav 탭 전환, 단일 `NavHostController`) | **패턴 A / A′도 안전하다, 이 시나리오에 한해.** `popUpTo(...) { saveState = true }` + `restoreState = true`를 쓰는 표준 탭 전환에서는 `viewModel()` 기본값(destination entry 스코프)도 값을 잃지 않는다 | **실측됨** (`10-nav-scope-experiment.md`). `NavController`가 팝된 엔트리의 `ViewModelStore` 자체를 보존했다가 복원하기 때문에, entry 스코프든 그래프 스코프든 결과가 같았다(`identityHashCode` 동일로 확인). 단, 이 결과는 "`NavController` 자신이 살아있는 동안"에만 성립한다 — 탭이 백그라운드로 밀려난 사이 **프로세스가 종료되면 실험 2의 결론이 그대로 적용되어** `SavedStateHandle` 없는 패턴 A/A′는 소실된다(재실험 불필요, 이미 알려진 메커니즘의 귀결). `saveState` 없는 완전한 pop과 탭마다 별도 `NavHostController`를 쓰는 아키텍처는 진짜 미실측이다(문서 §"이번 실측이 답하지 못한 것" 참고) |
 
 ### 패턴 A와 패턴 A′ 사이의 선택
 
@@ -154,8 +154,15 @@ RK3566과 SM-G950N 모두 디스플레이 방향이 고정되어 `user_rotation`
 2. 팀이 "검증은 순수 함수로 분리" 규율과 `SavedStateHandle` 보일러플레이트를 감수할 수 있는가?
    - 예 → **패턴 A+Saved / A′+Saved** + 순수 함수 검증.
    - 아니오, 또는 두 이점을 추가 비용 없이 기본으로 받고 싶다 → **패턴 B**.
-3. 폼 상태를 화면 수명보다 오래, 화면 밖에서 들고 있어야 하는가? (이번 실험 범위 밖, 3-2 참조)
-   - 예 → 일반 원칙상 패턴 B보다 **패턴 A 계열**(ViewModel 소유)이 유리할 것으로 보인다. 적용 전 실측 권장.
+3. 폼 상태를 화면 수명보다 오래, 화면 밖에서(다른 탭으로 이동 등) 들고 있어야 하는가?
+   - 단일 `NavHostController` + bottom nav 탭 전환(`saveState`/`restoreState`)이고, **프로세스 종료는
+     신경 쓰지 않아도 된다면** → **패턴 A 계열로 충분하다.** `viewModel()` 기본값도 값을 잃지 않는다
+     (`10-nav-scope-experiment.md` 실측). 그래프 스코프로 옮길 필요 없다.
+   - 위와 같되 **탭이 백그라운드에 있는 동안 프로세스 종료까지 견뎌야 한다면** → 실험 2의 결론이
+     그대로 적용된다. `SavedStateHandle` 없는 패턴 A/A′는 소실되므로 **패턴 A+Saved/A′+Saved 또는
+     패턴 B**로 가야 한다.
+   - `saveState` 없는 완전한 pop, 또는 탭마다 별도 `NavHostController`를 쓰는 구조라면 → 진짜
+     미실측이니 적용 전 별도 실측 권장(3-2 참조).
 
 ---
 
@@ -253,8 +260,36 @@ LaunchedEffect(holderB) {
 
 ---
 
+## 6. 한계와 미실측 외삽
+
+이 문서의 권장 중 일부는 실측 범위를 벗어난 외삽이다. 아래 표는 어느 항목이 어디까지 실측되었고,
+어디서부터 추정으로 전환되는지를 분리해서 보여준다.
+
+| 항목 | 실측 범위 | 미검증 리스크 | 확인 방법 |
+|---|---|---|---|
+| `SavedStateHandle` 보일러플레이트 선형성 ("1회 고정 8줄 + 필드당 1줄") | 필드 5개 | 코드 줄 수 자체는 `restoringField()` 호출 반복 횟수를 세는 문제라 device 실험 없이 코드만 봐도 선형임이 확정된다(`Bundle` 직렬화 비용은 문자열 20~30개 수준에서 `TransactionTooLargeException` 임계치인 약 1MB에 전혀 못 미치므로 애초에 쟁점이 아니다). 다만 `restoringField()`가 필드마다 `viewModelScope.launch { snapshotFlow{...}.collect{...} }`를 새로 띄우는 구조라서, 필드 20~30개면 ViewModel 생성 시점에 동시에 도는 컬렉터가 20~30개다. 이 컬렉터 수(코루틴 생성 비용, 연속 `launch` 초기화 비용)는 코드 줄 수와 별개의 축이며 미검증이다 | 코드 줄 수는 추가 실험이 불필요하다. 컬렉터 수 축만, 필드 20~30개짜리 ViewModel을 만들어 초기화 시점의 코루틴 launch 오버헤드와 타이핑 지연을 계측(마이크로벤치마크 또는 Compose 계측 테스트)한다 |
+| 화면 밖에서 폼 상태를 오래 들고 있는 경우 (단일 `NavHostController` + bottom nav 탭 전환, 프로세스는 살아있음) | **실측됨** — `10-nav-scope-experiment.md` | 없음. `popUpTo(saveState=true)` + `restoreState=true` 조합에서는 `viewModel()` 기본값도 그래프 스코프도 값을 잃지 않는다는 것이 device 테스트로 확인됐다("`NavController` 자신이 살아있는 동안"이라는 전제에 한정) | 해당 없음 |
+| 위와 같되 탭이 백그라운드에 있는 동안 **프로세스가 종료되는 경우** | 실험 2의 결론이 그대로 적용됨(재실험 불필요) | `NavController`와 그 `ViewModelStore`는 순수 in-memory 객체라 프로세스 종료로 통째로 사라진다. `rememberNavController()`의 `rememberSaveable`은 백스택 경로만 복원하고 `ViewModelStore`는 복원 대상이 아니다 | 해당 없음. `SavedStateHandle` 연동 여부로 실험 2와 동일하게 판단한다 |
+| `saveState` 없는 완전한 pop, 또는 **탭마다 별도 `NavHostController`를 쓰는 아키텍처** | 다루지 않음(진짜 미실측) | 전자는 `ViewModelStore.clear()`가 호출되어 값을 잃을 것으로 보이나 실측 없음. 후자는 `NavController`가 애초에 달라서 이번 실험이 확인한 `ViewModelStore` 보존 메커니즘 자체가 적용되지 않을 수 있다(Fragment 여부와 무관하게 순수 Compose 안에서도 실무에 흔한 변형) | 실제로 쓸 구조(pop 방식, 단일/다중 `NavHostController`)를 정하고 `10-nav-scope-experiment.md`의 테스트를 그 구조로 변형해 재현한다 |
+| 서버 제출·비동기 로직의 소유 | 다루지 않음 | 패턴 B에서 ViewModel이 `snapshotFlow`로 값만 관찰하는 구조가 실제 제출 로직(로딩·에러·재시도 상태 관리)과 잘 맞물리는지는 5장의 코드 스케치 수준에 그치며, 이를 뒷받침하는 실험 데이터는 없다 | 실제 제출 API 호출과 로딩·에러 상태를 패턴 B 구조에 연결하고, 제출 도중 화면 이탈·회전·프로세스 종료 같은 실패 시나리오까지 포함한 통합 테스트로 확인한다 |
+
+### 실무 적용 시 신뢰 구간
+
+- **그대로 가져다 써도 되는 결론** (§3-1, §3-2 둘째 행, 실측됨): 폼에 교차 필드 검증이 있거나 프로세스
+  강제 종료 복원이 요구사항이면 패턴 B가 그 이점을 기본값으로 제공한다는 판단, 그리고 **프로세스가
+  살아있는 동안의** bottom nav 탭 전환(단일 `NavHostController`)에서는 패턴 A 계열도 값을 잃지
+  않는다는 판단은 신뢰할 수 있다. 단, 탭이 백그라운드에 있는 사이 프로세스가 종료되는 경우는 이
+  결론이 적용되지 않고 실험 2의 결론(`SavedStateHandle` 없는 패턴 A/A′는 소실)로 돌아간다.
+- **직접 확인해야 하는 결론** (미실측): `saveState` 없는 pop, 탭마다 별도 `NavHostController`를 쓰는
+  아키텍처, 서버 제출·비동기 로직과의 통합은 이 저장소의 권장을 참고 자료로만 삼고, 실제 프로젝트에서
+  위 표의 확인 방법대로 별도로 실측해야 한다.
+
+---
+
 ## 참고
 
-- 상세 실측 로그와 예상 밖의 동작: `07-textfield-pattern.md`, `08-textfield-container-pattern.md`
-- 검증 테스트: `app/src/test/java/com/sonms/textfieldstatetest/form/CrossFieldValidationTest.kt`
+- 상세 실측 로그와 예상 밖의 동작: `07-textfield-pattern.md`, `08-textfield-container-pattern.md`,
+  `10-nav-scope-experiment.md`
+- 검증 테스트: `app/src/test/java/com/sonms/textfieldstatetest/form/CrossFieldValidationTest.kt`,
+  `app/src/androidTest/java/com/sonms/textfieldstatetest/navexperiment/NavScopeExperimentTest.kt`
 - RK3566 보드 실험 제약과 우회법: 저장소 메모리 `rk3566-test-device`
